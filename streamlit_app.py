@@ -100,8 +100,6 @@ st.set_page_config(page_title="165 防詐分析系統", layout="wide")
 st.title("🚨 165 智慧防詐分析系統 ")
 
 
-
-
 user_input = st.text_area("請輸入可疑對話、簡訊或網址內容：", height=250)
 run = st.button("啟動分析")
 
@@ -109,7 +107,7 @@ run = st.button("啟動分析")
 # 4. 主流程
 # =========================
 if run and user_input.strip():
-    with st.spinner("LLM 正在掃描雲端知識庫文件..."):
+    with st.spinner("LLM 正在掃描知識庫文件..."):
         
         full_docs_context = load_all_local_docs()
 
