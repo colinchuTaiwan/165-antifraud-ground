@@ -1,56 +1,152 @@
+import os
+import time
+import random
+import requests
 import streamlit as st
-from openai import OpenAI
+from pathlib import Path
 
-# Show title and description.
-st.title("💬 Chatbot")
-st.write(
-    "This is a simple chatbot that uses OpenAI's GPT-3.5 model to generate responses. "
-    "To use this app, you need to provide an OpenAI API key, which you can get [here](https://platform.openai.com/account/api-keys). "
-    "You can also learn how to build this app step by step by [following our tutorial](https://docs.streamlit.io/develop/tutorials/llms/build-conversational-apps)."
-)
+# =========================
+# 0. 環境變數處理 (Streamlit Secrets)
+# =========================
 
-# Ask user for their OpenAI API key via `st.text_input`.
-# Alternatively, you can store the API key in `./.streamlit/secrets.toml` and access it
-# via `st.secrets`, see https://docs.streamlit.io/develop/concepts/connections/secrets-management
-openai_api_key = st.text_input("OpenAI API Key", type="password")
-if not openai_api_key:
-    st.info("Please add your OpenAI API key to continue.", icon="🗝️")
-else:
 
-    # Create an OpenAI client.
-    client = OpenAI(api_key=openai_api_key)
+LITELLM_URL = st.secrets.get("LITELLM_URL", "")
+LITELLM_KEY = st.secrets.get("LITELLM_KEY", "")
+MODEL_NAME = st.secrets.get("MODEL_NAME", "gemma4-31b")
 
-    # Create a session state variable to store the chat messages. This ensures that the
-    # messages persist across reruns.
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
+CASE_DOCS_DIR = "case_docs"
+KNOWLEDGE_DB_DIR = "knowledge_db"
 
-    # Display the existing chat messages via `st.chat_message`.
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+# 確保雲端環境資料夾存在
+for d in [CASE_DOCS_DIR, KNOWLEDGE_DB_DIR]:
+    Path(d).mkdir(exist_ok=True)
 
-    # Create a chat input field to allow the user to enter a message. This will display
-    # automatically at the bottom of the page.
-    if prompt := st.chat_input("What is up?"):
+# =========================
+# 1. 讀取所有本地文獻
+# =========================
+def load_all_local_docs():
+    """將所有 txt 檔案合併成一個大型 Context 區塊"""
+    context_text = ""
+    
+    case_files = list(Path(CASE_DOCS_DIR).glob("*.txt"))
+    context_text += "--- 歷史詐騙案例彙整 ---\n"
+    if not case_files:
+        context_text += "(目前暫無案例檔案)\n"
+    for f in case_files:
+        try:
+            context_text += f"【檔案：{f.name}】\n{f.read_text(encoding='utf-8')}\n\n"
+        except Exception:
+            pass
+    
+    kb_files = list(Path(KNOWLEDGE_DB_DIR).glob("*.txt"))
+    context_text += "--- 官方防詐教材 ---\n"
+    if not kb_files:
+        context_text += "(目前暫無教材檔案)\n"
+    for f in kb_files:
+        try:
+            context_text += f"【主題：{f.name}】\n{f.read_text(encoding='utf-8')}\n\n"
+        except Exception:
+            pass
+            
+    return context_text
 
-        # Store and display the current prompt.
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
+# =========================
+# 2. API 呼叫
+# =========================
+def safe_gemma_call(prompt):
+    if not LITELLM_KEY:
+        return "❌ 錯誤：尚未在 Streamlit Secrets 設定 API Key"
 
-        # Generate a response using the OpenAI API.
-        stream = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": m["role"], "content": m["content"]}
-                for m in st.session_state.messages
-            ],
-            stream=True,
-        )
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": LITELLM_KEY
+    }
 
-        # Stream the response to the chat using `st.write_stream`, then store it in 
-        # session state.
-        with st.chat_message("assistant"):
-            response = st.write_stream(stream)
-        st.session_state.messages.append({"role": "assistant", "content": response})
+    for i in range(5):
+        try:
+            payload = {
+                "model": MODEL_NAME,
+                "messages": [
+                    {
+                        "role": "system", 
+                        "content": "你是165防詐分析官。請根據提供的知識庫進行分析，若無關聯請直說。"
+                    },
+                    {"role": "user", "content": prompt}
+                ],
+                "temperature": 0.1
+            }
+
+            res = requests.post(
+                LITELLM_URL,
+                headers=headers,
+                json=payload,
+                timeout=(5, 60)
+            )
+
+            if res.status_code == 200:
+                return res.json()['choices'][0]['message']['content']
+
+            if res.status_code in [429, 500, 503]:
+                time.sleep(min(2 ** i, 20) + random.random())
+        except Exception as e:
+            if i == 4:
+                return f"❌ API 錯誤: {e}"
+    return None
+
+# =========================
+# 3. UI 介面
+# =========================
+st.set_page_config(page_title="165 防詐分析系統", layout="wide")
+st.title("🚨 165 智慧防詐分析系統 (Cloud版)")
+
+# 側邊欄工具：顯示檔案狀態與提供上傳（選配，避免雲端資料夾沒檔案）
+with st.sidebar:
+    st.header("📂 知識庫管理")
+    case_count = len(list(Path(CASE_DOCS_DIR).glob("*.txt")))
+    kb_count = len(list(Path(KNOWLEDGE_DB_DIR).glob("*.txt")))
+    st.write(f"案例檔案數: {case_count}")
+    st.write(f"教材檔案數: {kb_count}")
+    
+    if st.checkbox("顯示目前知識庫清單"):
+        files = [f.name for f in Path(CASE_DOCS_DIR).glob("*.txt")] + \
+                [f.name for f in Path(KNOWLEDGE_DB_DIR).glob("*.txt")]
+        st.write(files)
+
+user_input = st.text_area("請輸入可疑對話、簡訊或網址內容：", height=250)
+run = st.button("啟動分析")
+
+# =========================
+# 4. 主流程
+# =========================
+if run and user_input.strip():
+    with st.spinner("LLM 正在掃描雲端知識庫文件..."):
+        
+        full_docs_context = load_all_local_docs()
+
+        prompt = f"""
+以下是我們的【防詐知識庫】：
+{full_docs_context}
+
+---
+【待分析用戶內容】：
+{user_input}
+
+請進行結構化分析：
+## 💡 刑事分析報告
+### 🚩 手法判定
+### ⚡ 關鍵風險點
+### 📘 防詐教育
+### 🛡️ 建議行動
+
+⚠️ 僅能依據知識庫回答。
+"""
+        result = safe_gemma_call(prompt)
+
+    if result:
+        st.markdown("### 📊 分析結果")
+        st.markdown(result)
+    else:
+        st.error("分析超時或發生錯誤。")
+
+st.divider()
+st.caption("⚠️ 本系統僅供參考，不具法律效力。")
