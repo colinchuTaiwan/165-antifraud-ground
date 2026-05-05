@@ -97,7 +97,7 @@ def safe_gemma_call(prompt):
 # 3. UI 介面
 # =========================
 st.set_page_config(page_title="165 防詐分析系統", layout="wide")
-st.title("🚨 165 智慧防詐分析系統 (Cloud版)")
+st.title("🚨 165 智慧防詐分析系統 ")
 
 
 
