@@ -12,7 +12,7 @@ from pathlib import Path
 
 LITELLM_URL = st.secrets.get("LITELLM_URL", "")
 LITELLM_KEY = st.secrets.get("LITELLM_KEY", "")
-MODEL_NAME = st.secrets.get("MODEL_NAME", "gemma4-31b")
+MODEL_NAME = st.secrets.get("MODEL_NAME", "")
 
 CASE_DOCS_DIR = "case_docs"
 KNOWLEDGE_DB_DIR = "knowledge_db"
