@@ -99,18 +99,8 @@ def safe_gemma_call(prompt):
 st.set_page_config(page_title="165 防詐分析系統", layout="wide")
 st.title("🚨 165 智慧防詐分析系統 (Cloud版)")
 
-# 側邊欄工具：顯示檔案狀態與提供上傳（選配，避免雲端資料夾沒檔案）
-with st.sidebar:
-    st.header("📂 知識庫管理")
-    case_count = len(list(Path(CASE_DOCS_DIR).glob("*.txt")))
-    kb_count = len(list(Path(KNOWLEDGE_DB_DIR).glob("*.txt")))
-    st.write(f"案例檔案數: {case_count}")
-    st.write(f"教材檔案數: {kb_count}")
-    
-    if st.checkbox("顯示目前知識庫清單"):
-        files = [f.name for f in Path(CASE_DOCS_DIR).glob("*.txt")] + \
-                [f.name for f in Path(KNOWLEDGE_DB_DIR).glob("*.txt")]
-        st.write(files)
+
+
 
 user_input = st.text_area("請輸入可疑對話、簡訊或網址內容：", height=250)
 run = st.button("啟動分析")
