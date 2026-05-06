@@ -112,21 +112,19 @@ if run and user_input.strip():
         full_docs_context = load_all_local_docs()
 
         prompt = f"""
-以下是我們的【防詐知識庫】：
+請根據以下提供的「歷史案例」與「官方教材」，對民眾提交的可疑內容進行深度剖析。
 {full_docs_context}
 
 ---
 【待分析用戶內容】：
 {user_input}
 
-請進行結構化分析：
+回覆規範：請使用台灣繁體中文，依照以下標題結構回覆：
 ## 💡 刑事分析報告
-### 🚩 手法判定
-### ⚡ 關鍵風險點
-### 📘 防詐教育
-### 🛡️ 建議行動
-
-⚠️ 僅能依據知識庫回答。
+### 🚩 專家研判 (Modus Operandi)
+### ⚡ 關鍵破綻 (Red Flags)
+### 📘 防詐教室 (Educational Brief)
+### 🛡️ 具體行動建議
 """
         result = safe_gemma_call(prompt)
 
